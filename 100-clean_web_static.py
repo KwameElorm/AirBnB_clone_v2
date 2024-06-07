@@ -1,112 +1,33 @@
 #!/usr/bin/python3
-
-"""This fabric script generates a .tgz archive from the contents of the
-web_static folder of the AirBnB Clone repo."""
+"""
+Deletes out-of-date archives
+fab -f 100-clean_web_static.py do_clean:number=2
+    -i ssh-key -u ubuntu > /dev/null 2>&1
+"""
 
 import os
-from datetime import datetime
-from fabric.operations import local, put, run, env, sudo
-from fabric.context_managers import cd, lcd
+from fabric.api import *
 
-env.hosts = ["web-01.noblet.tech", "web-02.noblet.tech"]
-env.user = "ubuntu"
-env.key_filename = "~/.ssh/id_rsa.pub"
-
-
-def do_pack():
-    """Generates a .tgz archive from the contents of the web_static folder."""
-    # Check if web_static folder exists
-    if os.path.exists("web_static") is False:
-        return None
-
-    # Create versions folder if it doesn't exist
-    if os.path.exists("versions") is False:
-        local("mkdir -p versions")
-
-    # Generate archive name using current date and time
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    archive_name = f"web_static_{timestamp}.tgz"
-
-    # Use tar command to create the archive
-    tar_command = f"tar -cvzf versions/{archive_name} web_static"
-    result = local(tar_command, capture=True)
-
-    # Check if archive was created successfully
-    if result.failed:
-        return None
-
-    # Return path to the generated archive
-    archive_path = os.path.join("versions", archive_name)
-    # print(f"Archive created successfully: {archive_path}")
-    return archive_path
-
-
-def do_deploy(archive_path: str) -> bool:
-    """Distributes an archive to your web servers."""
-    if not archive_path:
-        return False
-
-    if os.path.exists(archive_path) is False:
-        return False
-
-    archive_name = archive_path.split("/")[-1]
-    archive_name_no_ext = archive_name.split(".")[0]
-
-    put(archive_path, "/tmp/")
-    run(f"mkdir -p /data/web_static/releases/{archive_name_no_ext}/")
-    run(
-        f"tar -xzf /tmp/{archive_name} -C "
-        f"/data/web_static/releases/{archive_name_no_ext}/"
-    )
-    run(f"rm /tmp/{archive_name}")
-    run(
-        f"mv /data/web_static/releases/{archive_name_no_ext}/web_static/* "
-        f"/data/web_static/releases/{archive_name_no_ext}/"
-    )
-    run(f"rm -rf /data/web_static/releases/{archive_name_no_ext}/web_static")
-    run("rm -rf /data/web_static/current")
-    run(
-        f"ln -s /data/web_static/releases/{archive_name_no_ext}/ "
-        "/data/web_static/current"
-    )
-
-    print("New version deployed!")
-    return True
-
-
-def deploy():
-    """Creates and distributes an archive to your web servers."""
-    if not archive_path:
-        return False
-
-    return do_deploy(archive_path)
+env.hosts = ['52.87.155.66', '54.89.109.87']
 
 
 def do_clean(number=0):
+    """Delete out-of-date archives.
+    Args:
+        number (int): The number of archives to keep.
+    If number is 0 or 1, keeps only the most recent archive. If
+    number is 2, keeps the most and second-most recent archives,
+    etc.
     """
-    Deletes out-of-date archives
-    """
-    try:
-        number = int(number)
-    except ValueError:
-        number = 0
+    number = 1 if int(number) == 0 else int(number)
 
-    if number < 1:
-        number = 1
+    archives = sorted(os.listdir("versions"))
+    [archives.pop() for i in range(number)]
+    with lcd("versions"):
+        [local("rm ./{}".format(a)) for a in archives]
 
-    with cd('/data/web_static/releases'):
-        releases = sorted(run('ls -x').split())
-        to_delete = releases[:-number]
-        if len(to_delete) > 0:
-            for release in to_delete:
-                run('rm -rf {}'.format(release))
-
-    with cd('/data/web_static/releases'):
-        archives = sorted(run('ls -x').split())
-        to_delete = archives[:-number]
-        if len(to_delete) > 0:
-            for archive in to_delete:
-                run('rm -rf {}'.format(archive))
-
-    with lcd('versions'):
-        local('ls -t | tail -n +{} | xargs rm -rf'.format(number + 1))
+    with cd("/data/web_static/releases"):
+        archives = run("ls -tr").split()
+        archives = [a for a in archives if "web_static_" in a]
+        [archives.pop() for i in range(number)]
+        [run("rm -rf ./{}".format(a)) for a in archives]
