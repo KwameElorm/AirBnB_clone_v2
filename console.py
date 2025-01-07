@@ -1,3 +1,4 @@
+
 #!/usr/bin/python3
 """ Console Module """
 import cmd
@@ -33,7 +34,7 @@ class HBNBCommand(cmd.Cmd):
     def preloop(self):
         """Prints if isatty is false"""
         if not sys.__stdin__.isatty():
-            print('(hbnb)')
+            print('(hbnb) ', end='')
 
     def precmd(self, line):
         """Reformat command line for advanced command syntax.
@@ -115,40 +116,23 @@ class HBNBCommand(cmd.Cmd):
 
     def do_create(self, args):
         """ Create an object of any class"""
-        if not args:
+        args = args.split(" ")
+        class_args = args[0]
+        if not class_args:
             print("** class name missing **")
             return
-        argv = args.split()
-        _class = argv[0]
-        if _class not in HBNBCommand.classes:
+        elif class_args not in HBNBCommand.classes:
             print("** class doesn't exist **")
             return
-        param_list = argv[1:] if argv.__len__() > 1 else None
-        param_dict = {}
-        def validate_param(param):
-            (key, value) = param.split('=')
-            if (value.startswith('\"')) and (value.endswith('\"')):
-                 # Validating string value
-                 value = ''.join([ str(s) for s in list(value)[1:-1]])
-                 value = value.replace('_', ' ')
-                 value = value.replace('"','\"')
-                 param_dict[key] = value
-            elif ('.' in value):
-                # Validating float value
-                (unit, dot, decimal) = value.partition(".")
-                if (unit.isdecimal() and decimal.isdecimal()):
-                    param_dict[key] = float(value)
-            elif (value.isdecimal()):
-                # Validating number
-                param_dict[key] = int(value)
-            else:
-                pass
-        if (param_list):
-            for param in param_list:
-                validate_param(param) 
-        new_instance = HBNBCommand.classes[_class]()
-        new_instance.update(**param_dict)
-        new_instance.save()
+        kwargs = args[1:]
+        new_instance = HBNBCommand.classes[class_args]()
+        for key_value in kwargs:
+            [key, value] = key_value.split("=")
+            value = value.replace("_", " ")
+            value = value.replace("\"", "")
+            setattr(new_instance, key, value)
+        storage.new(new_instance)
+        storage.save()
         print(new_instance.id)
 
     def help_create(self):
@@ -231,13 +215,12 @@ class HBNBCommand(cmd.Cmd):
             if args not in HBNBCommand.classes:
                 print("** class doesn't exist **")
                 return
-            for k, v in storage._FileStorage__objects.items():
+            for k, v in storage.all(HBNBCommand.classes[args]).items():
                 if k.split('.')[0] == args:
                     print_list.append(str(v))
         else:
-            for k, v in storage._FileStorage__objects.items():
+            for k, v in storage.all().items():
                 print_list.append(str(v))
-
         print(print_list)
 
     def help_all(self):
@@ -344,6 +327,7 @@ class HBNBCommand(cmd.Cmd):
         """ Help information for the update class """
         print("Updates an object with new information")
         print("Usage: update <className> <id> <attName> <attVal>\n")
+
 
 if __name__ == "__main__":
     HBNBCommand().cmdloop()
